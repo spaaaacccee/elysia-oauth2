@@ -242,13 +242,16 @@ const oauth2 = <Profiles extends string>({
 
 					// >>> AUTHORIZED <<<
 					.get(authorized, async (ctx) => {
+						console.log('Authorized called:', ctx)
 						const {
 							profile: { provider },
 							checkStateOnAuthorized
 						} = ctx
 						const code = ctx.query.code as string
 
+						console.log('Checking state')
 						await checkStateOnAuthorized()
+						console.log('Checked state')
 
 						const {
 							clientId: client_id,
@@ -260,6 +263,7 @@ const oauth2 = <Profiles extends string>({
 						const credentials = btoa(
 							provider.clientId + ':' + provider.clientSecret
 						)
+						console.log('Exchanging code for token')
 
 						const response = await fetch(url, {
 							method: 'POST',
@@ -278,6 +282,7 @@ const oauth2 = <Profiles extends string>({
 								...params
 							}).toString()
 						})
+						console.log('Token response received')
 
 						if (
 							!response.ok ||
@@ -285,6 +290,7 @@ const oauth2 = <Profiles extends string>({
 								.get('Content-Type')
 								?.startsWith('application/json')
 						) {
+							console.log('Token response received with error:', response)
 							throw new Error(
 								`${response.status}: ${
 									response.statusText
@@ -293,13 +299,16 @@ const oauth2 = <Profiles extends string>({
 						}
 
 						const token = (await response.json()) as TOAuth2AccessToken
+						console.log('Token received:', token)
 						// ! expires_in is not sent by some providers. a default of one hour is set, which is acceptable.
 						// ! https://datatracker.ietf.org/doc/html/rfc6749#section-4.2.2
 						token.expires_in = token.expires_in ?? 3600
 						token.created_at = Date.now() / 1000
 
+						console.log('Saving token:')
 						await storage.set(ctx, (ctx.params as TOAuth2Params).name, token)
 
+						console.log('Redirecting:')
 						return redirect(redirectTo)
 					})
 
@@ -361,29 +370,30 @@ export * from './providers'
 
 // not relevant, just type declarations...
 
-export type InferContext<T> = T extends Elysia<
-	infer _Path,
-	infer Singleton,
-	infer _Definitions,
-	infer _Metadata,
-	infer _Routes,
-	infer Ephemeral,
-	infer Volatile
->
-	? Context<
-			RouteSchema,
-			{
-				decorator: Partial<Singleton['decorator']>
-				store: Partial<Singleton['store']>
-				derive: Partial<
-					Singleton['derive'] & Ephemeral['derive'] & Volatile['derive']
-				>
-				resolve: Partial<
-					Singleton['resolve'] & Ephemeral['resolve'] & Volatile['resolve']
-				>
-			}
-	  >
-	: never
+export type InferContext<T> =
+	T extends Elysia<
+		infer _Path,
+		infer Singleton,
+		infer _Definitions,
+		infer _Metadata,
+		infer _Routes,
+		infer Ephemeral,
+		infer Volatile
+	>
+		? Context<
+				RouteSchema,
+				{
+					decorator: Partial<Singleton['decorator']>
+					store: Partial<Singleton['store']>
+					derive: Partial<
+						Singleton['derive'] & Ephemeral['derive'] & Volatile['derive']
+					>
+					resolve: Partial<
+						Singleton['resolve'] & Ephemeral['resolve'] & Volatile['resolve']
+					>
+				}
+			>
+		: never
 
 type TOAuth2ProfileUrlMap<Profiles extends string> = {
 	[name in Profiles]: { login: string; callback: string; logout: string }
